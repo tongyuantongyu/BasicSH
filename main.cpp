@@ -15,6 +15,29 @@ std::unordered_set<std::string> bb_commands;
 const char* BUSYBOX = "./.runtime/busybox";
 const char* BUSYBOX_LIST = "./.runtime/busybox --list";
 
+const char* HELP_STRING = R"__HELP__(Usage Help
+
+    BasicSH can run commands like any shell.
+
+  Special characters
+
+    You can use 'single' or "double" quotes to quote input to let it interpreted as a single argument.
+    Backslash\ can be used to break your command into multi lines, or to input newline or tab character.
+
+  Meta commands
+
+    To exit, use meta command @exit.
+    To show this help, use meta command @help.
+    To start a process but ignore its output, use meta command @start.
+
+  Portable Coreutils Support
+
+    BasicSH supports portable coreutils by busybox. Busybox should be
+    placed at .runtime/busybox related to current directory to be found
+    by BasicSH. BasicSH will detect available commands provided by busybox,
+    and prior to busybox version than system version of a command.
+)__HELP__";
+
 int null_fd;
 int shell_pid;
 
@@ -265,7 +288,8 @@ int run(const CommandReader &command, const bool wait) {
 }
 
 const std::string META_EXIT  = "exit",
-                  META_START = "start";
+                  META_START = "start",
+                  META_HELP = "help";
 
 inline bool isCommand(const std::string& input, const std::string& command) {
   return std::mismatch(++input.begin(), input.end(), command.begin(), command.end()).second == command.end();
@@ -286,6 +310,7 @@ int main() {
   open_null();
   atexit(&close_null);
   std::cout << "Basic SH" << std:: endl;
+  std::cout << "Enter @help for usage help." << std:: endl;
 
   get_bb_commands();
 
@@ -310,10 +335,13 @@ int main() {
         input = input.substr(META_START.size() + 1);
         r.put(input);
         wait = false;
-      } else {
-        std::cerr << "Bad Meta command.";
-        std::cout << std::endl;
+      } else if (isCommand(input, META_HELP)) {
+        std::cout << HELP_STRING;
         std::cout.flush();
+      } else {
+          std::cerr << "Bad Meta command.";
+          std::cout << std::endl;
+          std::cout.flush();
       }
     } else {
       r.put(input);
