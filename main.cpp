@@ -78,7 +78,7 @@ void get_bb_commands() {
     }
   }
 
-  // didn't get any command
+  // didn't get any command. Also consider as can't find
   if (bb_commands.empty()) {
     std::cerr << "Warning: Busybox not available.";
     std::cout << std::endl;
@@ -141,6 +141,7 @@ class CommandReader {
   }
 
   const char *exec() const {
+    // non-enclosed input is not ready for generate args for exec. Return nullptr
     if (!this->enclosed) {
       return nullptr;
     }
@@ -150,6 +151,7 @@ class CommandReader {
 
   // use unique_ptr to ensure array of argv pointers released properly
   std::unique_ptr<char *[]> args() const {
+    // same
     if (!this->enclosed) {
       auto empty = std::unique_ptr<char *[]>();
       return empty;
@@ -176,7 +178,7 @@ class CommandReader {
 
  private:
   void putchar(const char& c) {
-    // escape. special handling for n and t, put literal otherwise
+    // escape. special handling for n and t, put char literally otherwise
     if (this->escape) {
       switch (c) {
         case 'n':
@@ -210,7 +212,7 @@ class CommandReader {
           case '\t':
           case '\n':
           case ' ':
-            // end of a command
+            // delimiters, end of an argument
             this->submit_buffer();
             // reset
             this->forced = false;
@@ -283,26 +285,25 @@ int run(const CommandReader &command, const bool wait) {
   int pid = fork();
 
   if (pid != 0) {
-    // shell process
+    // shell process. return pid for waiting
     return pid;
   }
 
   // command process
-  int fd_null;
-
   if (!wait) {
     // we don't wait, so don't mess the shell
     dup2(null_fd, STDOUT_FILENO);
     dup2(null_fd, STDERR_FILENO);
   }
 
+  // we provides array of arguments, and rely on PATH, so use execvp
   if (execvp(command.exec(), command.args().get()) == -1) {
     std::cerr << "Failed execute command.";
     std::cout << std::endl;
     std::cout.flush();
   }
 
-  // won't reach here if exec succeed.
+  // won't reach here if exec* succeed.
   exit(0);
 }
 
@@ -320,7 +321,7 @@ void open_null() {
 }
 
 void close_null() {
-  // atexit will also be executed in forked child process, but file should only execute once at shell exit.
+  // atexit will also be executed in forked child processes, but file should only close once at shell exit.
   // use pid to check if this process should take the responsibility.
   if (getpid() == shell_pid) {
     close(null_fd);
@@ -335,7 +336,9 @@ int main() {
 
   get_bb_commands();
 
+  // at command begin
   bool begin = true;
+  // should we wait for process end
   bool wait = true;
   CommandReader r;
 
